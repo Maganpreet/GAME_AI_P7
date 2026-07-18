@@ -1,5 +1,4 @@
-﻿// compile_check
-// Remove the line above if you are submitting to GradeScope for a grade. But leave it if you only want to check
+﻿// Remove the line above if you are submitting to GradeScope for a grade. But leave it if you only want to check
 // that your code compiles and the autograder can access your public methods.
 
 using System;
@@ -37,8 +36,12 @@ namespace GameAI
         enum FzOutputWheel { TurnLeft, GoStraight, TurnRight }
 
         enum FzInputSpeed { Slow, Medium, Fast }
+        enum FzInputLanePosition { Right, Center, Left }
+        enum FzInputFutureCurvature { TowardsLeft, Straight, TowardsRight }
 
         FuzzySet<FzInputSpeed> fzSpeedSet;
+        FuzzySet<FzInputLanePosition> fzLanePositionSet;
+        FuzzySet<FzInputFutureCurvature> fzFutureCurvatureSet;
 
         FuzzySet<FzOutputThrottle> fzThrottleSet;
         FuzzyRuleSet<FzOutputThrottle> fzThrottleRuleSet;
@@ -65,9 +68,25 @@ namespace GameAI
             // set = GenerateCrossfadeFuzzySet<FzInputSpeed>( ... );
             // replace the following:
 
-            set = new FuzzySet<FzInputSpeed>();
-
+            // set = new FuzzySet<FzInputSpeed>();
+            set = GenerateCrossfadeFuzzySet<FzInputSpeed>((0f, 50f), 90f, (110f, 150f));
             // You can then print the ASCII visualization for debugging:
+            // Debug.Log(RenderFuzzySetAscii(set));
+
+            return set;
+        }
+
+        private FuzzySet<FzInputLanePosition> GetLanePositionSet()
+        {
+            FuzzySet<FzInputLanePosition> set = GenerateCrossfadeFuzzySet<FzInputLanePosition>((-4f, -2.9f), 0f, (2.9f, 4f));
+            // Debug.Log(RenderFuzzySetAscii(set));
+
+            return set;
+        }
+
+        private FuzzySet<FzInputFutureCurvature> GetCurvatureSet()
+        {
+            FuzzySet<FzInputFutureCurvature> set = GenerateCrossfadeFuzzySet<FzInputFutureCurvature>((-70f, -20f), 0f, (20f, 70f));
             // Debug.Log(RenderFuzzySetAscii(set));
 
             return set;
@@ -83,10 +102,10 @@ namespace GameAI
             // set = GenerateDiscreteFuzzySet<FzOutputThrottle>( ... );
             // replace the following:
 
-            set = new FuzzySet<FzOutputThrottle>();
-
+            // set = new FuzzySet<FzOutputThrottle>();
+            set = GenerateDiscreteFuzzySet<FzOutputThrottle>(-1f, 0f, 1f);
             // Use RenderFuzzySetAscii(set) to visualize the shape of your output terms.
-
+            // Debug.Log(RenderFuzzySetAscii(set));
             return set;
         }
 
@@ -101,8 +120,8 @@ namespace GameAI
             // set = GenerateDiscreteFuzzySet<FzOutputWheel>( ... );
             // replace the following:
 
-            set = new FuzzySet<FzOutputWheel>();
-
+            // set = new FuzzySet<FzOutputWheel>();
+            set = GenerateDiscreteFuzzySet<FzOutputWheel>(-1f, 0f, 1f);
             // You may test with: Debug.Log(RenderFuzzySetAscii(set));
 
             return set;
@@ -119,6 +138,9 @@ namespace GameAI
                 If(FzInputSpeed.Slow).Then(FzOutputThrottle.Accelerate),
                 If(FzInputSpeed.Medium).Then(FzOutputThrottle.Coast),
                 If(FzInputSpeed.Fast).Then(FzOutputThrottle.Brake),
+                If(And(FzInputSpeed.Medium, Not(FzInputFutureCurvature.Straight))).Then(FzOutputThrottle.Brake),
+                If(And(FzInputSpeed.Medium, FzInputFutureCurvature.Straight)).Then(FzOutputThrottle.Accelerate),
+                // If(And(Or(FzInputFutureCurvature.TowardsLeft, FzInputFutureCurvature.TowardsRight), Not(FzInputSpeed.Slow))).Then(FzOutputThrottle.Brake),
                 // More example syntax
                 //If(And(FzInputSpeed.Fast, Not(FzFoo.Bar)).Then(FzOutputThrottle.Accelerate),
             };
@@ -132,6 +154,15 @@ namespace GameAI
             FuzzyRule<FzOutputWheel>[] rules =
             {
                 // TODO: Add some rules.
+                If(FzInputFutureCurvature.TowardsLeft).Then(FzOutputWheel.TurnLeft),
+                If(FzInputFutureCurvature.Straight).Then(FzOutputWheel.GoStraight),
+                // If(FzInputLanePosition.Center).Then(FzOutputWheel.GoStraight),
+                If(FzInputFutureCurvature.TowardsRight).Then(FzOutputWheel.TurnRight),
+                // If(And(FzInputLanePosition.Right, FzInputFutureCurvature.TowardsRight)).Then(FzOutputWheel.TurnLeft),
+                // If(And(FzInputLanePosition.Left, FzInputFutureCurvature.TowardsLeft)).Then(FzOutputWheel.TurnRight),
+                // If(FzInputLanePosition.Left).Then(FzOutputWheel.TurnRight),
+                // If(And(FzInputLanePosition.Left, FzInputFutureCurvature.TowardsLeft)).Then(FzOutputWheel.GoStraight),
+                // If(And(FzInputLanePosition.Right, FzInputFutureCurvature.TowardsRight)).Then(FzOutputWheel.GoStraight),
             };
 
             return new FuzzyRuleSet<FzOutputWheel>(wheel, rules);
@@ -142,7 +173,7 @@ namespace GameAI
         {
             base.Awake();
 
-            StudentName = "George P. Burdell";
+            StudentName = "Maganpreet Singh";
 
             // DO NOT INITIALIZE FUZZY STUFF HERE!!! Use Start() instead.
         }
@@ -153,6 +184,8 @@ namespace GameAI
 
             // TODO: You can initialize a bunch of Fuzzy stuff here like more fuzzy inputs
             fzSpeedSet = this.GetSpeedSet();
+            fzLanePositionSet = this.GetLanePositionSet();
+            fzFutureCurvatureSet = this.GetCurvatureSet();
 
             fzThrottleSet = this.GetThrottleSet();
             fzThrottleRuleSet = this.GetThrottleRuleSet(fzThrottleSet);
@@ -174,12 +207,52 @@ namespace GameAI
             // Both steering and throttle must be implemented with variable
             // control and not fixed/hardcoded!
 
-            HardCodeSteering(0f);
-            HardCodeThrottle(0.5f);
-            
+            // HardCodeSteering(0f);
+            // HardCodeThrottle(0.5f);
+            var dist = Racetrack.DistanceTravelled;
+            var time = Time.time;
+
+            // Debug.Log($"Distance: {dist}, Time: {time}, Speed: {Speed_kph}");
+
             // Simple example of fuzzification of vehicle state
             // The Speed is fuzzified and stored in fzInputValueSet
-            fzSpeedSet.Evaluate(Speed, fzInputValueSet);
+            fzSpeedSet.Evaluate(Speed_kph, fzInputValueSet);
+
+            var forward = Racetrack.ClosestPointDirectionOnPath.normalized;
+            // Debug.Log($"Forward: {forward}");
+            forward.y = 0f;
+            var left = new Vector3(-forward.z, 0f, forward.x);
+            var centerPos = Racetrack.ClosestPointOnPath;
+            var carPos = this.transform.position;
+
+            // var forward = new Vector3(centerPos.x, 0f, centerPos.y).normalized;
+            // var left = new Vector3(-forward.z, 0f, forward.x);
+            var carPosFromCenter = carPos - centerPos;
+            // need to recheck this but i think dot will negative if on right otherwise positive
+            var laneOffset = Vector3.Dot(carPosFromCenter, left);
+
+            // print($"Lane Offset: {laneOffset}, Halfwidth: {Racetrack.HalfRoadWidth}");
+            fzLanePositionSet.Evaluate(laneOffset, fzInputValueSet);
+            
+            //Kunhao TA Suggestion
+            var lookAheadDistance = Mathf.Clamp(Speed * 0.5f, 10, 40);
+            // Debug.Log($"Lookahead Distance: {lookAheadDistance}");
+            var roadAheadPoint = Racetrack.GetPointAhead(lookAheadDistance);
+            var dirToPoint = roadAheadPoint - this.transform.position;
+            dirToPoint.y = 0f;
+            var curveAngle = Vector3.SignedAngle(this.transform.forward, dirToPoint.normalized, Vector3.up);
+            // Debug.Log($"Curvature: {curveAngle}");
+            fzFutureCurvatureSet.Evaluate(curveAngle, fzInputValueSet);
+            // var futureCarPos = Racetrack.GetDirectionAhead(10f);
+            // var nearestCenterToPointAhead = Racetrack.GetClosestPointDirectionOnPath(futureCarPos).normalized;
+
+            // Debug.Log($"The future nearest point {nearestCenterToPointAhead}");
+            
+            // var futureCarPosFromCenter = futureCarPos - nearestCenterToPointAhead;
+
+            // var curvature = Vector3.SignedAngle(nearestCenterToPointAhead, futureCarPosFromCenter, Vector3.up);
+
+            // fzCurvatureSet.Evaluate(Curvature, fzInputValueSet);
 
             // ApplyFuzzyRules evaluates your rules and assigns Thottle and Steering accordingly
             // Also, some intermediate values are passed back for debugging purposes
